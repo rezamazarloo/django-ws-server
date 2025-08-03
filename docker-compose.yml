@@ -15,6 +15,8 @@ services:
       - .env
     depends_on:
       - postgresdb
+      - redisdb
+      - rabbitmqbroker
     command: >
       sh -c "python manage.py migrate &&
             python manage.py compilemessages &&
@@ -34,7 +36,60 @@ services:
       -c shared_buffers=128MB
     # shared_buffers > 1GB for production (default is 128MB)
     # max_connections should be lower when using PgBouncer
+  rabbitmqbroker:
+    image: rabbitmq:4.1.2-management
+    ports:
+      - 5672:5672      # AMQP
+      - 15672:15672    # RabbitMQ UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    env_file:
+      - .env
+  redisdb:
+    image: redis:7.4
+    volumes:
+      - redis_data:/data
+    ports:
+      - 6379:6379
+    command: redis-server --appendonly yes
+    restart: always
+  celery:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    depends_on:
+      - ws-server-backend
+    env_file:
+      - .env
+    environment:
+      - C_FORCE_ROOT=true
+    command: celery -A config worker -l INFO
+    restart: always
+  celery-beat:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    depends_on:
+      - ws-server-backend
+    env_file:
+      - .env
+    command: celery -A config beat --loglevel=info
+    restart: always
+  flower:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 5555:5555
+    command: celery -A config flower --port=5555
+    volumes:
+      - flower_data:/flower_data
+    depends_on:
+      - celery
 volumes:
   pgdata:
+  redis_data:
+  rabbitmq_data:
   media_volume:
   log_volume:
+  flower_data:
