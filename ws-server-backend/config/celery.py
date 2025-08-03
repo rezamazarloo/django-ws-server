@@ -12,6 +12,6 @@ app.autodiscover_tasks()
 app.conf.beat_schedule = {
     "clean_up_old_messages": {
         "task": "chat.tasks.clean_up_old_messages",
-        "schedule": crontab(minute="*/5"),  # Run every 5 minutes
+        "schedule": crontab(minute="*/1"),  # Run every 1 minutes
     },
 }
