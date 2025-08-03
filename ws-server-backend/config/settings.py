@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+from django.utils.translation import gettext_lazy as _
+from decouple import config
 from pathlib import Path
 import os
 
@@ -21,23 +23,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-unh@7xc3w4$(y=f2wghy*kcn$!m7_zbiy5iq%_mk8z=e40u%jg"
+SECRET_KEY = config("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
+DEBUG = config("DJANGO_DEBUG", default=True, cast=bool)
+ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", default="").split(" ")
 
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
+    "chat.apps.ChatConfig",
 ]
 
 MIDDLEWARE = [
@@ -67,8 +70,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "config.wsgi.application"
-
+ASGI_APPLICATION = "config.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -77,14 +79,38 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "postgres"),
-        "USER": os.getenv("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
-        "HOST": os.getenv("POSTGRES_HOST", "postgresdb"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "NAME": config("POSTGRES_DB", default="postgres"),
+        "USER": config("POSTGRES_USER", default="postgres"),
+        "PASSWORD": config("POSTGRES_PASSWORD", default="postgres"),
+        "HOST": config("POSTGRES_HOST", default="postgresdb"),
+        "PORT": config("POSTGRES_PORT", default="5432"),
     }
 }
 
+REDIS_HOST = config("REDIS_HOST", default="redisdb")
+REDIS_PORT = config("REDIS_PORT", default="6379")
+REDIS_CHANNEL_DB = config("REDIS_CHANNEL_DATABASE", default=1)
+REDIS_CELERY_RESULT_DB = config("REDIS_CELERY_RESULT_DATABASE", default=2)
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CHANNEL_DB}"],
+        },
+    },
+}
+
+RABBITMQ_USER = config("RABBITMQ_DEFAULT_USER", default="guest")
+RABBITMQ_PASSWORD = config("RABBITMQ_DEFAULT_PASS", default="guest")
+RABBITMQ_HOST = config("RABBITMQ_HOST", default="rabbitmqbroker")
+RABBITMQ_PORT = config("RABBITMQ_PORT", default="5672")
+
+CELERY_TASK_TRACK_STARTED = True
+CELERY_BROKER_URL = f"amqp://{RABBITMQ_USER}:{RABBITMQ_PASSWORD}@{RABBITMQ_HOST}:{RABBITMQ_PORT}/"
+CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_RESULT_DB}"
+CELERY_TASK_DEFAULT_QUEUE = "chat"
+CELERY_TIMEZONE = "Asia/Tehran"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -108,11 +134,20 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+TIME_ZONE = "Asia/Tehran"
+LANGUAGE_CODE = "fa-ir"
+LANGUAGES = [
+    ("fa", _("Farsi")),
+]
 
-TIME_ZONE = "UTC"
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, "locale"),
+]
+
 
 USE_I18N = True
+
+USE_L10N = True
 
 USE_TZ = True
 
@@ -120,7 +155,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
